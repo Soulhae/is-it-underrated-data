@@ -1,40 +1,120 @@
 import fs from 'fs';
-import { sleep } from './util.js';
+import { sleep, randomSleep } from './util.js';
 
-const testAppIds = [2429640, 1026680, 2986450, 1903340, 774361, 439660];
+// const testAppIds = [2429640, 1026680, 2986450, 1903340, 774361, 439660];
 
-async function getSteamGamesDetails(){
+async function getSteamGamesDetails(appIds){
     let dataList = [];
-    for (const appId of testAppIds) {
+    let contador = 0;
+    const destFile = 'steam_games_final.jsonl';
+    const stateFile = 'steam_games_state.json';
+
+    if(fs.existsSync(stateFile)){
+        const stateData = fs.readFileSync(stateFile);
+        const state = JSON.parse(stateData);
+        const lastAppId = state.lastAppId;
+        const lastIndex = appIds.indexOf(lastAppId);
+
+        if(lastIndex !== -1 && lastIndex < appIds.length - 1){
+            appIds = appIds.slice(lastIndex + 1);
+        }
+    }
+
+    for (const appId of appIds) {
+        let parsedYear = 0;
+        // console.log(`processing appId: ${appId} and index ${appIds.indexOf(appId)}`);
         try {
-            const response = await fetch(`https://store.steampowered.com/api/appdetails?appids=${appId}`);
+            const response = await fetch(`https://store.steampowered.com/api/appdetails?filters=basic,release_date&appids=${appId}`); // esta api no está documentada oficialmente, troste
+            const contentType = response.headers.get('content-type');
+
+            if(response.status === 429){
+                console.error(`too many requests, sleep de 5 min`); // rate limit según la comunidad (200 req / 5 min), no hay documentación oficial
+                await sleep(300000);
+                continue;
+            }
+
+            if(!contentType || !contentType.includes('application/json')) {
+                console.error(`Expected JSON response for appId ${appId} and index ${appIds.indexOf(appId)}, but got content type: ${contentType}`);
+                await randomSleep(1500, 2500);
+                continue;
+            }
+
             const data = await response.json();
+            if(!data || !data[appId] || !data[appId].success){
+                continue;
+            }
             // console.log(data);
-            // if(data[appId].success && data[appId].data.type === 'game' && data[appId].data.release_date.coming_soon === false && data[appId].data?.release_date?.date > 2025){ {
-            // }    hay q pasar a unix timestamp la fecha de release date para poder comparar con 2025 (1735689600)
-            if(data[appId].success){
+
+            if(data[appId].data?.release_date?.coming_soon === true || !data[appId].data?.release_date?.date){
+                continue;
+            }
+
+            const dateText = data[appId].data?.release_date?.date;
+            const date = new Date(dateText);
+
+            if(!isNaN(date.getTime())){
+                parsedYear = date.getFullYear();
+            }else{
+                parsedYear = dateText.match(/\d{4}/);
+                if(parsedYear){
+                    parsedYear = parseInt(parsedYear[0]);
+                }else{
+                    parsedYear = 0;
+                }
+            }
+
+            if(data[appId].success && data[appId].data.type === 'game' && parsedYear >= 2025){
                 dataList.push(data[appId].data);
             }
-            await sleep(1000);
+            
+            contador++;
+            if (contador % 100 === 0) {
+                if(dataList.length > 0){
+                    const jsonlData = dataList.map(item => JSON.stringify(item)).join('\n') + '\n';
+                    fs.appendFileSync(destFile, jsonlData);
+                    dataList = [];
+                }
+                const state = { lastAppId: appId };
+                fs.writeFileSync(stateFile, JSON.stringify(state));
+                console.log(`last processed appId: ${appId}`);
+            }
+
+            await randomSleep(1500, 2500);
         } catch (error) {
             console.error(error);
         }
     }
-    return dataList;
+
+    if(dataList.length > 0){
+        const jsonlData = dataList.map(item => JSON.stringify(item)).join('\n') + '\n';
+        fs.appendFileSync(destFile, jsonlData);
+        dataList = [];
+    }
 }
 
 async function main() {
-    // acá hay q limpiar los juegos q tengan por ej dedicated server, dlc, ost, soundtrack, y esas cosillas por el estilo chaval.
+    const newerGames = fs.readFileSync('steam_games_2025.json');
+    const newerGamesParse = JSON.parse(newerGames);
 
-    const gameDetails = await getSteamGamesDetails();
-    fs.writeFileSync('steam_games_details.json', JSON.stringify(gameDetails, null, 2));
-    const rawData = fs.readFileSync('steam_games_details.json');
-    const gameDetailsParse = JSON.parse(rawData);
-    for (const game in gameDetailsParse) {
-        console.log(gameDetailsParse[game].name);
-        console.log(gameDetailsParse[game].release_date.date);
-        console.log(gameDetailsParse[game].type);
-    }
+    const forbiddenWords = ['dlc', 'sdk', 'soundtrack', 'demo', 'playtest', 'beta', 'dedicated server', 'ost'];
+    const filteredGames = newerGamesParse.filter(game => {
+        const gameName = game.name.toLowerCase();
+        return !forbiddenWords.some(word => gameName.includes(word));
+    });
+
+    fs.writeFileSync('steam_games_2025_filtered.json', JSON.stringify(filteredGames, null, 2));
+
+    await getSteamGamesDetails(filteredGames.map(game => game.appid));
+    // fs.writeFileSync('steam_games_details.json', JSON.stringify(gameDetails, null, 2));
+
+    // const rawData = fs.readFileSync('steam_games_details.json');
+    // const gameDetailsParse = JSON.parse(rawData);
+    // for (const game in gameDetailsParse) {
+    //     console.log(gameDetailsParse[game].steam_appid);
+    //     console.log(gameDetailsParse[game].name);
+    //     console.log(gameDetailsParse[game].release_date.date);
+    //     console.log(gameDetailsParse[game].type);
+    // }
 }
 
 main();
