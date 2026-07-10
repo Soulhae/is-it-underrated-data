@@ -20,7 +20,8 @@ async function getSteamGamesDetails(appIds){
         }
     }
 
-    for (const appId of appIds) {
+    for (let i=0; i<appIds.length; i++) {
+        const appId = appIds[i];
         let parsedYear = 0;
         // console.log(`processing appId: ${appId} and index ${appIds.indexOf(appId)}`);
         try {
@@ -30,12 +31,13 @@ async function getSteamGamesDetails(appIds){
             if(response.status === 429){
                 console.error(`too many requests, sleep de 5 min`); // rate limit según la comunidad (200 req / 5 min), no hay documentación oficial
                 await sleep(300000);
+                i--;
                 continue;
             }
 
             if(!contentType || !contentType.includes('application/json')) {
                 console.error(`Expected JSON response for appId ${appId} and index ${appIds.indexOf(appId)}, but got content type: ${contentType}`);
-                await randomSleep(1500, 2500);
+                await randomSleep(3500, 5000);
                 continue;
             }
 
@@ -79,7 +81,7 @@ async function getSteamGamesDetails(appIds){
                 console.log(`last processed appId: ${appId}`);
             }
 
-            await randomSleep(1500, 2500);
+            await randomSleep(3500, 5000);
         } catch (error) {
             console.error(error);
         }
