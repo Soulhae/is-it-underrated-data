@@ -27,6 +27,7 @@ async function getSteamGamesDetails(appIds){
         try {
             const response = await fetch(`https://store.steampowered.com/api/appdetails?filters=basic,release_date&appids=${appId}`); // esta api no está documentada oficialmente, troste
             const contentType = response.headers.get('content-type');
+            // console.log(response.status, `processing appId: ${appId} and index ${appIds.indexOf(appId)}`);
 
             if(response.status === 429){
                 console.error(`too many requests, sleep de 5 min`); // rate limit según la comunidad (200 req / 5 min), no hay documentación oficial
@@ -37,17 +38,20 @@ async function getSteamGamesDetails(appIds){
 
             if(!contentType || !contentType.includes('application/json')) {
                 console.error(`Expected JSON response for appId ${appId} and index ${appIds.indexOf(appId)}, but got content type: ${contentType}`);
-                await randomSleep(3500, 5000);
+                await randomSleep(1750, 2500);
                 continue;
             }
 
             const data = await response.json();
             if(!data || !data[appId] || !data[appId].success){
+                // console.log('no hay data para este appId o success es false, saltando...');
                 continue;
             }
             // console.log(data);
 
             if(data[appId].data?.release_date?.coming_soon === true || !data[appId].data?.release_date?.date){
+                // console.log(`appId ${appId} is coming soon or has no release date, skipping...`);
+                await randomSleep(1750, 2500);
                 continue;
             }
 
@@ -81,7 +85,7 @@ async function getSteamGamesDetails(appIds){
                 console.log(`last processed appId: ${appId}`);
             }
 
-            await randomSleep(3500, 5000);
+            await randomSleep(1750, 2500);
         } catch (error) {
             console.error(error);
         }

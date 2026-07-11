@@ -20,7 +20,7 @@ const batchSize = 1000;
 async function uploadGames() {
     for (let i = 0; i < dbRecords.length; i += batchSize) {
         const batch = dbRecords.slice(i, i + batchSize);
-        const { data, error } = await supabase.from('steam_game').upsert(batch).select();
+        const { data, error } = await supabase.from('steam_game').upsert(batch);
         if (error) {
             console.error(`Database error upserting batch starting at index ${i}:`, error.message);
             return;
@@ -28,16 +28,5 @@ async function uploadGames() {
         console.log(`Upserted batch starting at index ${i}:`, data.length, 'records');
     }
 }
-
-// async function uploadGames() {
-//     for (const game of steamGames) {
-//         const { data, error } = await supabase.from('steam_game').upsert({ app_id: game.steam_appid, name: game.name, short_description: game.short_description, header_image: game.header_image, release_date: game.release_date.date }).select();
-//         if (error) {
-//             console.error(`Database error upserting game: ${game.name}`, error.message);
-//             return;
-//         }
-//         console.log('Upserted game:', data);
-//     }
-// }
 
 uploadGames();
