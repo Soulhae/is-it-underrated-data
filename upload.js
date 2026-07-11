@@ -14,13 +14,16 @@ const dbRecords = steamGames.map(game => ({
     header_image: game.header_image,
     release_date: game.release_date.date
 }));
+const uniqueRecords = Array.from(new Map(dbRecords.map(item => [item.app_id, item])).values());
 
-const batchSize = 1000;
+const batchSize = 5000;
 
 async function uploadGames() {
-    for (let i = 0; i < dbRecords.length; i += batchSize) {
-        const batch = dbRecords.slice(i, i + batchSize);
-        const { data, error } = await supabase.from('steam_game').upsert(batch);
+    for (let i = 0; i < uniqueRecords.length; i += batchSize) {
+        const batch = uniqueRecords.slice(i, i + batchSize);
+
+        const { data, error } = await supabase.from('steam_game').upsert(batch).select();
+
         if (error) {
             console.error(`Database error upserting batch starting at index ${i}:`, error.message);
             return;
