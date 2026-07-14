@@ -1,13 +1,13 @@
 import 'dotenv/config';
 import fs from 'fs';
-import { AuthRefreshDiscardedError, createClient } from '@supabase/supabase-js';
+// import { createClient } from '@supabase/supabase-js';
 import { sleep, gameCount } from './util.js';
 
-const supabaseUrl = process.env.SUPABASE_URL;
-const supabaseKey = process.env.SUPABASE_KEY;
-const steamApiKey = process.env.STEAM_WEBAPI_KEY;
+// const supabaseUrl = process.env.SUPABASE_URL;
+// const supabaseKey = process.env.SUPABASE_KEY;
+// const steamApiKey = process.env.STEAM_WEBAPI_KEY;
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+// const supabase = createClient(supabaseUrl, supabaseKey);
 
 let maxAppId = 0;
 
