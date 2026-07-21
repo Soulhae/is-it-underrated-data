@@ -53,7 +53,7 @@ async function getMetrics(appId) {
     }
 }
 
-async function main() {
+async function steamFetcherUpdate(){
     const today = new Date().toISOString().split('T')[0];
     // console.log(today);
     // let test = 0;
@@ -103,6 +103,90 @@ async function main() {
         }
         // test++;
     }
+}
+
+function calculateUnderratedScore(totalReviews, positiveReviews, currentPlayers) {
+    
+    const MIN_REVIEWS_FOR_SCORE = 100; // mínimo de reviews para calcular un score significativo
+    
+    if (!totalReviews || totalReviews < MIN_REVIEWS_FOR_SCORE) {
+        return 0;
+    }
+    
+    const POPULARITY_THRESHOLD = 3000; // max cantidad de reviews para considerar un juego como "poco popular"
+    const QUALITY_WEIGHT = 0.6; // peso de la calidad (ratio de reviews positivas)
+    const HIDDEN_WEIGHT = 0.3; // peso de nicho, a menor reviews, mayor factor de nicho
+    const PLAYER_WEIGHT = 0.1; // peso de la cantidad de jugadores actuales
+
+    const hiddenFactor = 1 - (Math.min(totalReviews, POPULARITY_THRESHOLD) / POPULARITY_THRESHOLD);
+    const qualityRatio = positiveReviews / totalReviews;
+    const playerFactor = currentPlayers > 0 ? Math.max(0, 1 - (Math.log10(currentPlayers) / 5)) : 0; 
+
+    let finalScore = ((qualityRatio * QUALITY_WEIGHT) + (hiddenFactor * HIDDEN_WEIGHT) + (playerFactor * PLAYER_WEIGHT)) * 100;
+
+    if (currentPlayers <= 10) {
+        finalScore = finalScore * 0.8; 
+    }
+
+    return Math.max(0, Math.min(100, Math.round(finalScore)));
+}
+
+async function updateUnderratedScores() {
+    const batchSize = 5000;
+
+    while(true) {
+        const { data: games, error } = await supabase
+            .from('steam_game')
+            .select('app_id, name, total_reviews, positive_reviews, current_players')
+            .is('underrated_score', null)
+            .limit(batchSize);
+
+        if (error) {
+            console.error('Error fetching games for underrated score update:', error);
+            break;
+        }
+
+        if (!games || games.length === 0) {
+            break;
+        }
+
+        for (const game of games) {
+            try {
+                const underratedScore = calculateUnderratedScore(
+                    game.total_reviews,
+                    game.positive_reviews,
+                    game.current_players
+                );
+
+                const { error: updateError } = await supabase
+                    .from('steam_game')
+                    .update({
+                        underrated_score: underratedScore
+                    })
+                    .eq('app_id', game.app_id);
+
+                if (updateError) {
+                    console.error(`Error updating underrated score for ${game.name} (App ID: ${game.app_id}):`, updateError);
+                }
+            } catch (error) {
+                console.error(`Error calculating/updating underrated score for App ID: ${game.app_id}:`, error);
+            }
+        }
+    }
+}
+
+async function main() {
+    // await steamFetcherUpdate().then(() => {
+    //     console.log('Finished fetching metrics for all games.');
+    // }).catch((error) => {
+    //     console.error('Error in steamFetcherUpdate:', error);
+    // });
+
+    await updateUnderratedScores().then(() => {
+        console.log('Finished updating underrated scores for all games.');
+    }).catch((error) => {
+        console.error('Error in updateUnderratedScores:', error);
+    });
 }
 
 main();
