@@ -103,9 +103,9 @@ async function main() {
     const newerGamesParse = JSON.parse(newerGames);
 
     const forbiddenWords = ['dlc', 'sdk', 'soundtrack', 'demo', 'playtest', 'beta', 'dedicated server', 'ost'];
+    const forbiddenRegex = new RegExp(`\\b(${forbiddenWords.join('|')})\\b`, 'i');
     const filteredGames = newerGamesParse.filter(game => {
-        const gameName = game.name.toLowerCase();
-        return !forbiddenWords.some(word => gameName.includes(word));
+        return !forbiddenRegex.test(game.name);
     });
 
     fs.writeFileSync('steam_games_2025_filtered.json', JSON.stringify(filteredGames, null, 2));

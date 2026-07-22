@@ -107,16 +107,18 @@ async function steamFetcherUpdate(){
 
 function calculateUnderratedScore(totalReviews, positiveReviews, currentPlayers) {
     
-    const MIN_REVIEWS_FOR_SCORE = 100; // mínimo de reviews para calcular un score significativo
+    const MIN_REVIEWS_FOR_SCORE = 350; // mínimo de reviews para calcular un score significativo
     
     if (!totalReviews || totalReviews < MIN_REVIEWS_FOR_SCORE) {
         return 0;
     }
     
-    const POPULARITY_THRESHOLD = 3000; // max cantidad de reviews para considerar un juego como "poco popular"
-    const QUALITY_WEIGHT = 0.6; // peso de la calidad (ratio de reviews positivas)
-    const HIDDEN_WEIGHT = 0.3; // peso de nicho, a menor reviews, mayor factor de nicho
-    const PLAYER_WEIGHT = 0.1; // peso de la cantidad de jugadores actuales
+    // estas constantes no muy constantes son las q hay q ir probando, por ejemplo, creo q sería weno cuando tenga el player history ponerle más peso a la cantidad de players
+    // lo mismo con las variaciones de players en el tiempo y la 'vejez' del juego
+    const POPULARITY_THRESHOLD = 5000; // max cantidad de reviews para considerar un juego como "poco popular"
+    const QUALITY_WEIGHT = 0.7; // peso de la calidad (ratio de reviews positivas)
+    const HIDDEN_WEIGHT = 0.25; // peso de nicho, a menor reviews, mayor factor de nicho
+    const PLAYER_WEIGHT = 0.05; // peso de la cantidad de jugadores actuales
 
     const hiddenFactor = 1 - (Math.min(totalReviews, POPULARITY_THRESHOLD) / POPULARITY_THRESHOLD);
     const qualityRatio = positiveReviews / totalReviews;
@@ -125,24 +127,22 @@ function calculateUnderratedScore(totalReviews, positiveReviews, currentPlayers)
     let finalScore = ((qualityRatio * QUALITY_WEIGHT) + (hiddenFactor * HIDDEN_WEIGHT) + (playerFactor * PLAYER_WEIGHT)) * 100;
 
     if (currentPlayers <= 10) {
-        finalScore = finalScore * 0.8; 
+        finalScore = finalScore * 0.975;  // OJITO este porcentaje puede ser engañoso en casos de juegos single player (pq quizá es un juego corto y nunca más lo juegas)
     }
 
     return Math.max(0, Math.min(100, Math.round(finalScore)));
 }
 
 async function updateUnderratedScores() {
-    const batchSize = 5000;
-    // let offset = 0;
+    const batchSize = 1000;
+    let offset = 0;
 
     while(true) {
         const { data: games, error } = await supabase
             .from('steam_game')
             .select('app_id, name, total_reviews, positive_reviews, current_players')
-            // .order('app_id', { ascending: true })
-            // .range(offset, offset + batchSize - 1) fix para updatear aunque no seal nulls, comentar .is('underrated_score', null) y limit(batchSize);
-            .is('underrated_score', null)
-            .limit(batchSize);
+            .order('app_id', { ascending: true })
+            .range(offset, offset + batchSize - 1)
 
         if (error) {
             console.error('Error fetching games for underrated score update:', error);
@@ -175,7 +175,7 @@ async function updateUnderratedScores() {
                 console.error(`Error calculating/updating underrated score for App ID: ${game.app_id}:`, error);
             }
         }
-        // offset += batchSize;
+        offset += games.length;
     }
 }
 
