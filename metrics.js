@@ -133,11 +133,14 @@ function calculateUnderratedScore(totalReviews, positiveReviews, currentPlayers)
 
 async function updateUnderratedScores() {
     const batchSize = 5000;
+    // let offset = 0;
 
     while(true) {
         const { data: games, error } = await supabase
             .from('steam_game')
             .select('app_id, name, total_reviews, positive_reviews, current_players')
+            // .order('app_id', { ascending: true })
+            // .range(offset, offset + batchSize - 1) fix para updatear aunque no seal nulls, comentar .is('underrated_score', null) y limit(batchSize);
             .is('underrated_score', null)
             .limit(batchSize);
 
@@ -172,6 +175,7 @@ async function updateUnderratedScores() {
                 console.error(`Error calculating/updating underrated score for App ID: ${game.app_id}:`, error);
             }
         }
+        // offset += batchSize;
     }
 }
 
